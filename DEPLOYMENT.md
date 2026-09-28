@@ -10,17 +10,17 @@
 
 | Mục | Nội dung |
 |-----|----------|
-| Họ và tên | (điền họ tên) |
-| Mã học viên | (điền mã học viên) |
-| Repo | (điền link repo K4-L3A-DAY12-HoVaTen-MSSV-CloudServicesAndDeployment) |
+| Họ và tên | Cao Văn Cường |
+| Mã học viên | 2A202602493 |
+| Repo | https://github.com/caovancuong611/K4-L3A-DAY12-CaoVanCuong-2A202602493-CloudServicesAndDeployment |
 
 ## Service
 
 | Mục | Nội dung |
 |-----|----------|
-| Public URL | https://TODO-thay-bang-url-that.up.railway.app |
-| Platform | Railway / Render / Cloud Run — (điền platform bạn dùng) |
-| Ngày deploy | (điền ngày) |
+| Public URL | https://day12-agent-production-27aa.up.railway.app |
+| Platform | Railway |
+| Ngày deploy | 2026-09-28 |
 
 ## Biến Môi Trường Đã Set Trên Cloud
 
@@ -28,74 +28,76 @@ Ghi tên biến và **nguồn giá trị**, không ghi giá trị:
 
 | Biến | Đã set | Ghi chú |
 |------|--------|---------|
-| `PORT` | ✅ | platform tự gán |
-| `AGENT_API_KEY` | ✅ | đặt trong dashboard, không nằm trong repo |
-| `REDIS_URL` | ✅ | (điền: Redis add-on của platform / Upstash / ...) |
+| `PORT` | ✅ | Railway tự gán |
+| `AGENT_API_KEY` | ✅ | đặt trong dashboard Railway, không nằm trong repo |
+| `REDIS_URL` | ✅ | tham chiếu tới service Redis add-on của Railway (`${{day12-redis.REDIS_URL}}`) |
 | `RATE_LIMIT_PER_MINUTE` | ✅ | 10 |
 | `MONTHLY_BUDGET_USD` | ✅ | 10.0 |
 | `LOG_LEVEL` | ✅ | INFO |
 
 ## Lệnh Kiểm Tra
 
-Thay `<URL>` bằng Public URL ở trên:
+```powershell
+$URL = "https://day12-agent-production-27aa.up.railway.app"
 
-```bash
-# 1. Liveness — mong đợi 200 {"status":"ok"}
-curl -i <URL>/health
+# 1. Liveness
+curl.exe -i "$URL/health"
 
-# 2. Readiness — mong đợi 200 {"status":"ready"} (đã nối được Redis)
-curl -i <URL>/ready
+# 2. Readiness
+curl.exe -i "$URL/ready"
 
 # 3. Không có API key — mong đợi 401
-curl -i -X POST <URL>/ask \
-  -H "Content-Type: application/json" \
-  -d '{"question":"Hello"}'
+curl.exe -i -X POST "$URL/ask" -H "Content-Type: application/json" --data "@ask.json"
 
 # 4. Có API key — mong đợi 200 kèm câu trả lời
-curl -i -X POST <URL>/ask \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: $AGENT_API_KEY" \
-  -H "X-User-Id: sv-test" \
-  -d '{"question":"Deploy là gì?"}'
+curl.exe -i -X POST "$URL/ask" -H "Content-Type: application/json" -H "X-API-Key: $apiKey" -H "X-User-Id: sv-test" --data "@ask.json"
 
 # 5. Rate limit — gọi 15 lần, những lần cuối phải trả 429
-for i in $(seq 1 15); do
-  curl -s -o /dev/null -w "%{http_code} " -X POST <URL>/ask \
-    -H "Content-Type: application/json" \
-    -H "X-API-Key: $AGENT_API_KEY" \
-    -H "X-User-Id: sv-test" \
-    -d '{"question":"test"}'
-done; echo
+for ($i=1; $i -le 15; $i++) {
+  $code = curl.exe -s -o NUL -w "%{http_code}" -X POST "$URL/ask" -H "Content-Type: application/json" -H "X-API-Key: $apiKey" -H "X-User-Id: sv-test" --data "@ask.json"
+  Write-Host "$code " -NoNewline
+}
 ```
 
 ## Kết Quả Chạy Thật
 
-Dán output của các lệnh trên vào đây:
-
 ```
-(điền output)
+1. GET /health
+HTTP/1.1 200 OK
+{"status":"ok","service":"day12-agent","version":"1.0.0"}
+
+2. GET /ready
+HTTP/1.1 200 OK
+{"status":"ready","redis":true}
+
+3. POST /ask (không có API key)
+HTTP/1.1 401 Unauthorized
+{"detail":"invalid or missing API key"}
+
+4. POST /ask (có API key hợp lệ)
+HTTP/1.1 200 OK
+{"answer":"Theo mình hiểu, Docker la gi liên quan tới cách hệ thống được đóng
+gói và vận hành. Điểm mấu chốt là tách cấu hình ra khỏi code và giữ service ở
+trạng thái stateless.","user_id":"sv01","history_length":0,
+"cost_usd":2.505e-05,"tokens":{"in":3,"out":41}}
+
+5. Rate limit test (15 request liên tiếp, giới hạn 10/phút)
+200 200 200 200 200 200 200 200 200 200 429 429 429 429 429
+→ đúng như kỳ vọng: 10 request đầu qua, 5 request sau bị chặn 429.
 ```
 
 ## Ảnh Chụp Màn Hình
 
 Đặt ảnh trong thư mục `screenshots/`:
 
-- `screenshots/dashboard.png` — trang quản lý service trên platform
+- `screenshots/dashboard.png` — trang quản lý service trên Railway (2 service day12-agent + day12-redis, trạng thái Online)
 - `screenshots/health.png` — kết quả gọi `/health` từ trình duyệt hoặc curl
+- `screenshots/ready.png` — kết quả gọi `/ready`
+- `screenshots/ask-401.png` — kết quả `/ask` không có API key
+- `screenshots/ask-200.png` — kết quả `/ask` có API key hợp lệ
 
 ---
 
 ## Nếu Dùng Phương Án Dự Phòng
 
-Không đăng ký được tài khoản cloud? Vẫn nộp được bài, nhưng CP5 tối đa 60% điểm:
-
-1. Đặt `LOCAL_FALLBACK=true` trong `.env`
-2. Chạy `docker compose up -d` rồi kiểm tra `docker compose ps`
-3. Chụp màn hình vào `screenshots/`
-4. Chạy `pytest tests/test_cp5.py -v` — bộ test sẽ tự chuyển sang kiểm tra
-   `http://localhost:8000`
-5. Ghi rõ lý do không deploy được vào phần dưới đây:
-
-```
-(điền lý do nếu dùng phương án dự phòng, ngược lại xóa mục này)
-```
+(Không áp dụng — đã deploy thành công lên Railway với public URL ở trên.)
